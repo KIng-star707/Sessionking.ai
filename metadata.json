@@ -1,0 +1,6 @@
+{
+  "name": "SESSIONKING 🤴 - AMI Forex Intelligence",
+  "description": "Institutional-grade Adaptive Market Intelligence Forex system for structured education and session-based signal generation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

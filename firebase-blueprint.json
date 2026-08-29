@@ -1,0 +1,375 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile data",
+      "type": "object",
+      "properties": {
+        "displayName": {
+          "type": "string",
+          "description": "The user's display name"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The user's email address"
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "The user's optional phone number"
+        },
+        "photoURL": {
+          "type": "string",
+          "format": "uri",
+          "description": "The user's profile photo URL"
+        },
+        "plan": {
+          "type": "string",
+          "enum": ["free", "starter", "pro", "premium", "institutional"],
+          "description": "The user's subscription plan"
+        },
+        "currentPlan": {
+          "type": "string",
+          "enum": ["free", "starter", "pro", "premium", "institutional"],
+          "description": "The user's active subscription plan"
+        },
+        "subscriptionActive": {
+          "type": "boolean",
+          "description": "Whether the subscription is active"
+        },
+        "subscriptionStartDate": {
+          "type": "string",
+          "description": "ISO format timestamp of start date"
+        },
+        "subscriptionExpiryDate": {
+          "type": "string",
+          "description": "ISO format timestamp of expiry date"
+        },
+        "intelligenceCredits": {
+          "type": "number",
+          "description": "Number of credits remaining for Intelligence Terminal"
+        },
+        "intelligenceActive": {
+          "type": "boolean",
+          "description": "Whether Intelligence Terminal access is active"
+        },
+        "paystackReference": {
+          "type": "string",
+          "description": "Last paystack reference string"
+        },
+        "lastPaymentAmount": {
+          "type": "number",
+          "description": "Last payment amount in minor unit or float"
+        },
+        "lastPaymentDate": {
+          "type": "string",
+          "description": "ISO format timestamp"
+        },
+        "paymentStatus": {
+          "type": "string",
+          "enum": ["none", "pending", "successful", "expired"]
+        },
+        "accountStatus": {
+          "type": "string",
+          "enum": ["active", "suspended"]
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO 8601 date string of when the user was created"
+        },
+        "lastLoginAt": {
+          "type": "string",
+          "description": "ISO 8601 date string of the user's last login"
+        },
+        "lastLoginLocation": {
+          "type": "string",
+          "description": "The user's last login location (city, country)"
+        },
+        "tradingMode": {
+          "type": "string",
+          "enum": ["Scalp Trader", "Day Trader", "Swing Trader"],
+          "description": "The user's preferred trading style"
+        }
+      },
+      "required": ["email", "plan", "createdAt"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Paystack payment logs",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "type": { "type": "string", "enum": ["subscription", "intelligence"] },
+        "planName": { "type": "string" },
+        "amount": { "type": "number" },
+        "paystackReference": { "type": "string" },
+        "paystackTransactionId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "successful", "failed"] },
+        "verifiedByBackend": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "verifiedAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "type", "planName", "amount", "paystackReference", "status", "createdAt"]
+    },
+    "SubscriptionLog": {
+      "title": "SubscriptionLog",
+      "description": "Log of subscription events",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "action": { "type": "string", "enum": ["subscription_created", "subscription_renewed", "subscription_expired", "subscription_cancelled", "subscription_revoked_by_admin"] },
+        "planName": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "performedBy": { "type": "string", "enum": ["system", "admin", "webhook"] }
+      },
+      "required": ["uid", "action", "planName", "timestamp", "performedBy"]
+    },
+    "IntelligenceTransaction": {
+      "title": "IntelligenceTransaction",
+      "description": "Log of intelligence terminal credits transactions",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "action": { "type": "string", "enum": ["purchase", "usage"] },
+        "creditsBefore": { "type": "number" },
+        "creditsAfter": { "type": "number" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["uid", "action", "creditsBefore", "creditsAfter", "timestamp"]
+    },
+    "Signal": {
+      "title": "Signal",
+      "description": "A trading signal generated by the user",
+      "type": "object",
+      "properties": {
+        "pair": {
+          "type": "string",
+          "description": "The currency pair"
+        },
+        "session": {
+          "type": "string",
+          "description": "The trading session"
+        },
+        "direction": {
+          "type": "string",
+          "enum": ["BUY", "SELL", "WAIT"],
+          "description": "The direction of the signal"
+        },
+        "executionType": {
+          "type": "string",
+          "enum": ["MARKET", "LIMIT"],
+          "description": "The execution type of the signal"
+        },
+        "estimatedTriggerTime": {
+          "type": "string",
+          "description": "The estimated trigger time of the signal"
+        },
+        "confidence": {
+          "type": "number",
+          "description": "The confidence level of the signal"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO 8601 date string of when the signal was generated"
+        }
+      },
+      "required": ["pair", "session", "direction", "confidence", "createdAt"]
+    },
+    "Usage": {
+      "title": "Usage",
+      "description": "Daily signal usage tracking",
+      "type": "object",
+      "properties": {
+        "date": {
+          "type": "string",
+          "description": "The date of the usage in YYYY-MM-DD format"
+        },
+        "signalCount": {
+          "type": "number",
+          "description": "The number of signals generated on this date"
+        }
+      },
+      "required": ["date", "signalCount"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "Broadcast announcements",
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string",
+          "description": "The announcement message"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO 8601 date string of when the announcement was created"
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Whether the announcement is active"
+        }
+      },
+      "required": ["message", "createdAt", "active"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "User notifications",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The ID of the user this notification belongs to"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["SIGNAL", "RISK", "INSIGHT", "ACCOUNT"],
+          "description": "The type of notification"
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the notification"
+        },
+        "message": {
+          "type": "string",
+          "description": "The message of the notification"
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["HIGH", "MEDIUM", "LOW"],
+          "description": "The priority of the notification"
+        },
+        "isRead": {
+          "type": "boolean",
+          "description": "Whether the notification has been read"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "ISO 8601 date string of when the notification was created"
+        }
+      },
+      "required": ["userId", "type", "title", "message", "priority", "isRead", "timestamp"]
+    },
+    "SupportTicket": {
+      "title": "SupportTicket",
+      "description": "User support tickets",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string",
+          "format": "email"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["open", "closed"]
+        },
+        "createdAt": {
+          "type": "string"
+        }
+      },
+      "required": ["userId", "name", "email", "subject", "message", "status", "createdAt"]
+    },
+    "TradeHistory": {
+      "title": "TradeHistory",
+      "description": "User trade history",
+      "type": "object",
+      "properties": {
+        "pair": { "type": "string" },
+        "direction": { "type": "string", "enum": ["BUY", "SELL"] },
+        "entryPrice": { "type": "number" },
+        "exitPrice": { "type": "number" },
+        "stopLoss": { "type": "number" },
+        "takeProfit": { "type": "number" },
+        "outcome": { "type": "string", "enum": ["WIN", "LOSS", "OPEN"] },
+        "createdAt": { "type": "string" },
+        "closedAt": { "type": "string" },
+        "pips": { "type": "number" },
+        "session": { "type": "string" },
+        "mode": { "type": "string" }
+      },
+      "required": ["pair", "direction", "entryPrice", "stopLoss", "takeProfit", "createdAt"]
+    },
+    "Mail": {
+      "title": "Mail",
+      "description": "Emails to be sent via Trigger Email extension",
+      "type": "object",
+      "properties": {
+        "to": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Array of email addresses to send to"
+        },
+        "message": {
+          "type": "object",
+          "properties": {
+            "subject": { "type": "string" },
+            "text": { "type": "string" },
+            "html": { "type": "string" }
+          },
+          "required": ["subject", "text"]
+        }
+      },
+      "required": ["to", "message"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profiles"
+    },
+    "/users/{userId}/signals/{signalId}": {
+      "schema": { "$ref": "#/entities/Signal" },
+      "description": "User generated signals"
+    },
+    "/users/{userId}/usage/{date}": {
+      "schema": { "$ref": "#/entities/Usage" },
+      "description": "User daily signal usage"
+    },
+    "/users/{userId}/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "User notifications"
+    },
+    "/users/{userId}/tradeHistory/{tradeId}": {
+      "schema": { "$ref": "#/entities/TradeHistory" },
+      "description": "User trade history"
+    },
+    "/announcements/{announcementId}": {
+      "schema": { "$ref": "#/entities/Announcement" },
+      "description": "Broadcast announcements"
+    },
+    "/supportTickets/{ticketId}": {
+      "schema": { "$ref": "#/entities/SupportTicket" },
+      "description": "User generated support tickets"
+    },
+    "/mail/{mailId}": {
+      "schema": { "$ref": "#/entities/Mail" },
+      "description": "Emails to be sent via Trigger Email extension"
+    },
+    "/payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/Payment" },
+      "description": "Payment records verified by backend"
+    },
+    "/subscription_logs/{logId}": {
+      "schema": { "$ref": "#/entities/SubscriptionLog" },
+      "description": "Subscription transaction logs"
+    },
+    "/intelligence_transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/IntelligenceTransaction" }
+    }
+  }
+}

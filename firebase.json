@@ -1,0 +1,8 @@
+{
+  "firestore": [
+    {
+      "database": "king-fx-db",
+      "rules": "firestore.rules"
+    }
+  ]
+}

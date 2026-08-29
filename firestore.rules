@@ -1,0 +1,158 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        (request.auth.token.email != null && (
+          request.auth.token.email == 'dekingsjackson@gmail.com' ||
+          request.auth.token.email == 'system-backend@sessionking.com' ||
+          request.auth.token.email.matches('(?i)dekingsjackson@gmail.com') ||
+          request.auth.token.email.matches('(?i).*admin.*@.*')
+        )) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_admin', 'owner'])
+      );
+    }
+
+    function getAdminRole() {
+      return !isAuthenticated() ? 'none' : (
+        (request.auth.token.email != null && (
+          request.auth.token.email == 'dekingsjackson@gmail.com' || 
+          request.auth.token.email == 'system-backend@sessionking.com' ||
+          request.auth.token.email.matches('(?i)dekingsjackson@gmail.com')
+        )) ? 'super_admin' : (
+          exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ? get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role : (
+            exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role != null
+              ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+              : 'none'
+          )
+        )
+      );
+    }
+
+    function hasRole(role) {
+      return isAdmin() && getAdminRole() == role;
+    }
+
+    function isAtLeastModerator() {
+      return isAdmin() && getAdminRole() in ['super_admin', 'admin', 'moderator'];
+    }
+
+    function isAtLeastAdmin() {
+      return isAdmin() && getAdminRole() in ['super_admin', 'admin', 'owner'];
+    }
+
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    match /admins/{adminId} {
+      allow read: if isAuthenticated() && (request.auth.uid == adminId || isAtLeastAdmin());
+      allow write: if isAtLeastAdmin();
+    }
+
+    // USER ROOT DOCUMENT
+    match /users/{userId} {
+      allow get: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAuthenticated();
+      allow create: if isAuthenticated() && (request.auth.uid == userId || isAtLeastAdmin());
+      allow update: if isAuthenticated() && (
+        (request.auth.uid == userId && !incoming().diff(existing()).affectedKeys().hasAny([
+          'subscriptionActive', 'currentPlan', 'subscriptionExpiryDate', 'paymentStatus', 'paystackReference', 'lastPaymentAmount', 'lastPaymentDate', 'accountStatus', 'intelligenceCredits', 'intelligenceActive', 'suspended', 'suspendedAt', 'suspendedReason', 'suspendedBy', 'suspensionLiftedAt', 'role'
+        ])) || isAtLeastAdmin()
+      );
+      allow delete: if isAtLeastAdmin();
+
+      // SIGNALS
+      match /signals/{signalId} {
+        allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+        allow write: if isAuthenticated() && (request.auth.uid == userId || isAtLeastAdmin());
+      }
+
+      // USAGE
+      match /usage/{usageId} {
+        allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+        allow write: if isAuthenticated() && (request.auth.uid == userId || isAtLeastAdmin());
+      }
+
+      // OTHER SUBCOLLECTIONS
+      match /{subCollection}/{docId} {
+        allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+        allow write: if isAuthenticated() && (request.auth.uid == userId || isAtLeastAdmin());
+      }
+    }
+
+    match /sharedAnalyses/{analysisId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update, delete: if isAtLeastAdmin();
+    }
+
+    match /announcements/{announcementId} {
+      allow read: if true;
+      allow write: if isAtLeastAdmin();
+    }
+
+    match /supportTickets/{ticketId} {
+      allow create: if true;
+      allow read, update, delete: if isAtLeastAdmin();
+    }
+
+    match /mail/{mailId} {
+      allow read: if isAtLeastAdmin();
+      allow write: if isAtLeastAdmin();
+    }
+
+    // LIVE SIGNALS (Written by backend webhook)
+    match /liveSignals/{signalId} {
+      allow read: if isAuthenticated();
+      allow write: if true; // Webhook writes here. In a real app, use Admin SDK.
+    }
+
+    // AUDIT LOGS
+    match /logs/{logId} {
+      allow read: if isAtLeastAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false; // Logs are immutable
+    }
+
+    // ADMIN SESSIONS
+    match /adminSessions/{sessionId} {
+      allow read: if isAtLeastAdmin();
+      allow create, update: if isAdmin() && request.auth.uid == sessionId;
+      allow delete: if false;
+    }
+    // AI LOGS
+    match /aiLogs/{logId} {
+      allow read: if isAtLeastAdmin();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAtLeastAdmin();
+    }
+
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated() && (resource.data.uid == request.auth.uid || isAtLeastAdmin());
+      allow write: if isAtLeastAdmin(); // Only backend can write
+    }
+
+    match /subscription_logs/{logId} {
+      allow read: if isAuthenticated() && (resource.data.uid == request.auth.uid || isAtLeastAdmin());
+      allow write: if isAtLeastAdmin(); // Only backend can write
+    }
+
+    match /intelligence_transactions/{logId} {
+      allow read: if isAuthenticated() && (resource.data.uid == request.auth.uid || isAtLeastAdmin());
+      allow write: if isAtLeastAdmin(); // Only backend can write
+    }
+
+    // SYSTEM CONFIG
+    match /system/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAtLeastAdmin();
+    }
+  }
+}
