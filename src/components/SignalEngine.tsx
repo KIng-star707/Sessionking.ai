@@ -147,6 +147,28 @@ export default function SignalEngine({ user, userProfile, userPlan, onUpgrade }:
     return val.toFixed(5);
   }, []);
 
+  const isPairLocked = useCallback((pairSymbol: string, currentPlan: Plan | string = 'free'): boolean => {
+    const p = (currentPlan || 'free').toLowerCase();
+    // Institutional plan has zero restrictions - all currency pairs unlocked without padlocks
+    if (p === 'institutional') return false;
+
+    const isMajor = ['EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CAD', 'AUD/USD', 'NZD/USD', 'USD/CHF'].includes(pairSymbol);
+    const isMetal = pairSymbol.includes('XAU') || pairSymbol.includes('XAG');
+    const isCrypto = pairSymbol.includes('BTC') || pairSymbol.includes('ETH');
+    const isExotic = ['USD/MXN', 'USD/BRL', 'USD/ZAR', 'USD/TRY', 'USD/SGD', 'USD/HKD'].includes(pairSymbol);
+
+    if (p === 'free' || p === 'starter') {
+      return !isMajor;
+    }
+    if (p === 'pro') {
+      return isMetal || isCrypto || isExotic;
+    }
+    if (p === 'premium') {
+      return false;
+    }
+    return false;
+  }, []);
+
   
   
   const [globalNews, setGlobalNews] = useState<string>("No significant news available.");
@@ -676,12 +698,16 @@ export default function SignalEngine({ user, userProfile, userPlan, onUpgrade }:
     }
 
     // Currency Pair restrictions
-    const isMetal = pair.includes("XAU") || pair.includes("XAG");
-    const isCrypto = pair.includes("BTC") || pair.includes("ETH");
-    const isExotic = ["USD/MXN", "USD/BRL", "USD/ZAR", "USD/TRY", "USD/SGD", "USD/HKD"].includes(pair);
+    if (plan !== "institutional" && isPairLocked(pair, plan)) {
+      const isMetal = pair.includes("XAU") || pair.includes("XAG");
+      const isCrypto = pair.includes("BTC") || pair.includes("ETH");
+      const isExotic = ["USD/MXN", "USD/BRL", "USD/ZAR", "USD/TRY", "USD/SGD", "USD/HKD"].includes(pair);
 
-    if ((isMetal || isCrypto || isExotic) && (plan === "free" || plan === "pro")) {
-      setError(`Locked: Exotic pairs, Metals (Gold/Silver), and Cryptocurrencies are restricted to Premium and Institutional plans. Your current plan is ${plan.toUpperCase()}.`);
+      if (isMetal || isCrypto || isExotic) {
+        setError(`🔒 Locked: ${pair} (Metals/Crypto/Exotics) is restricted to Premium and Institutional plans. Your current plan is ${plan.toUpperCase()}.`);
+      } else {
+        setError(`🔒 Locked: ${pair} is not available on the ${plan.toUpperCase()} plan. Upgrade to Pro, Premium or Institutional to unlock.`);
+      }
       return;
     }
     
@@ -1105,9 +1131,14 @@ export default function SignalEngine({ user, userProfile, userPlan, onUpgrade }:
                     onChange={(e) => setPair(e.target.value)}
                     className="w-full bg-matte-black border border-white/10 rounded-lg px-4 py-3 focus:outline-none focus:border-red-500/50 transition-colors font-mono text-sm"
                   >
-                    {PAIRS_BY_SESSION[session].map((p) => (
-                      <option key={p} value={p}>{p}</option>
-                    ))}
+                    {PAIRS_BY_SESSION[session].map((p) => {
+                      const locked = plan !== 'institutional' && isPairLocked(p, plan);
+                      return (
+                        <option key={p} value={p}>
+                          {locked ? '🔒 ' : ''}{p}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
               </div>
@@ -1204,11 +1235,14 @@ export default function SignalEngine({ user, userProfile, userPlan, onUpgrade }:
                 onChange={(e) => setPair(e.target.value)}
                 className="w-full bg-matte-black border border-white/10 rounded-lg px-4 py-3.5 focus:outline-none focus:border-gold/50 transition-colors appearance-none min-h-[48px]"
               >
-                {PAIRS_BY_SESSION[session].map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
+                {PAIRS_BY_SESSION[session].map((p) => {
+                  const locked = plan !== 'institutional' && isPairLocked(p, plan);
+                  return (
+                    <option key={p} value={p}>
+                      {locked ? '🔒 ' : ''}{p}
+                    </option>
+                  );
+                })}
               </select>
             </div>
 
@@ -1243,6 +1277,32 @@ export default function SignalEngine({ user, userProfile, userPlan, onUpgrade }:
           </div>
 
           <div className="flex flex-col gap-4">
+            {/* Locked Pair Warning Banner */}
+            {plan !== 'institutional' && isPairLocked(pair, plan) && (
+              <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-sm">
+                <div className="flex items-center gap-3">
+                  <Lock className="w-5 h-5 text-amber-400 flex-shrink-0" />
+                  <div>
+                    <p className="font-semibold text-white">
+                      {pair} is locked on your {plan.toUpperCase()} plan
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {(pair.includes('XAU') || pair.includes('XAG') || pair.includes('BTC') || pair.includes('ETH') || ["USD/MXN", "USD/BRL", "USD/ZAR", "USD/TRY", "USD/SGD", "USD/HKD"].includes(pair))
+                        ? 'Upgrade to Premium or Institutional for Metals, Crypto & Exotic pairs analysis.'
+                        : 'Upgrade to Pro, Premium or Institutional to unlock this currency pair.'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={onUpgrade}
+                  className="px-4 py-2 bg-gold text-matte-black text-xs font-bold rounded-lg hover:bg-gold/90 transition-all flex items-center gap-1.5 flex-shrink-0 shadow"
+                >
+                  <Zap className="w-3.5 h-3.5" /> Upgrade Plan
+                </button>
+              </div>
+            )}
+
             <button
               onClick={handleAnalyze}
               disabled={isAnalyzing || !pair || !isEngineActive}

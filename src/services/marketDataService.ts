@@ -51,16 +51,17 @@ export function isMarketWeekend(): boolean {
 export function normalizePairSymbol(pair: string): string {
   if (!pair) return '';
   let clean = pair.trim().toUpperCase();
+  clean = clean.replace(/^(FOREX:|FX:|BINANCE:|COINBASE:|OANDA:|FCS:)/i, '');
+  if (clean === 'XAUUSD' || clean === 'GOLD' || clean === 'XAU/USD') return 'XAU/USD';
+  if (clean === 'XAGUSD' || clean === 'SILVER' || clean === 'XAG/USD') return 'XAG/USD';
+  if (clean === 'BTCUSD' || clean === 'BTCUSDT' || clean === 'BTC/USD') return 'BTC/USD';
+  if (clean === 'ETHUSD' || clean === 'ETHUSDT' || clean === 'ETH/USD') return 'ETH/USD';
   if (clean.includes('/')) return clean;
   if (clean.includes('-')) return clean.replace('-', '/');
   if (clean.includes('_')) return clean.replace('_', '/');
   if (clean.length === 6) {
     return `${clean.substring(0, 3)}/${clean.substring(3)}`;
   }
-  if (clean === 'XAUUSD') return 'XAU/USD';
-  if (clean === 'XAGUSD') return 'XAG/USD';
-  if (clean === 'BTCUSD') return 'BTC/USD';
-  if (clean === 'ETHUSD') return 'ETH/USD';
   return clean;
 }
 

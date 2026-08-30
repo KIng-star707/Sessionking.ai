@@ -1104,6 +1104,9 @@ async function startServer() {
               } else if (item.symbol === 'ETHUSDT') {
                 updates['ETH/USD'] = price;
                 updateCentralMarketState('ETH/USD', price, price - 0.25, price + 0.25, Date.now(), `BINANCE-${Date.now()}`, 'BINANCE');
+              } else if (item.symbol === 'PAXGUSDT') {
+                updates['XAU/USD'] = price;
+                updateCentralMarketState('XAU/USD', price, price - 0.25, price + 0.25, Date.now(), `BINANCE-PAXG-${Date.now()}`, 'BINANCE');
               }
             }
           });
@@ -1139,12 +1142,13 @@ async function startServer() {
     const updates: Record<string, number> = {};
 
     try {
-      // Try Tier 1: FCS API if user has a custom configured key
+      // Try Tier 1: FCS API if key is available
       let fcsSuccess = false;
-      if (process.env.FCS_API_KEY && process.env.FCS_API_KEY.length > 5) {
+      const key = process.env.FCS_API_KEY || FCS_API_KEY;
+      if (key && key.length > 5) {
         try {
           const symbols = PAIRS.filter(p => !p.includes('BTC') && !p.includes('ETH')).join(',');
-          const fcsRes = await fetch(`https://api-v4.fcsapi.com/forex/latest?symbol=${symbols}&access_key=${process.env.FCS_API_KEY}`);
+          const fcsRes = await fetch(`https://api-v4.fcsapi.com/forex/latest?symbol=${symbols}&access_key=${key}`);
           if (fcsRes.ok) {
             const fcsData = await fcsRes.json();
             if (fcsData && fcsData.status === true && Array.isArray(fcsData.response)) {
@@ -1427,6 +1431,9 @@ async function startServer() {
     }
   });
 
+  // In-memory cache for recent AI completions to avoid quota exhaustion (TTL: 20 seconds)
+  const geminiResponseCache = new Map<string, { timestamp: number; data: any }>();
+
   // Proxy Endpoint for Gemini calls
   app.post("/api/gemini", async (req: any, res: any) => {
     let releaseLock: (() => void) | null = null;
@@ -1437,6 +1444,14 @@ async function startServer() {
 
     try {
       const { feature, model, contents, config, systemInstruction } = req.body;
+      
+      // Check in-memory completion cache (20s TTL) for identical payloads
+      const cacheKey = `${feature || 'gen'}-${JSON.stringify(contents || '').slice(0, 300)}-${JSON.stringify(config || '')}`;
+      const cached = geminiResponseCache.get(cacheKey);
+      if (cached && (Date.now() - cached.timestamp < 20000)) {
+        console.log(`[Gemini Cache] Serving fresh cached completion for ${feature || 'request'}`);
+        return res.json(cached.data);
+      }
       
       const authHeader = req.headers.authorization;
       let uid = null;
@@ -1518,75 +1533,74 @@ async function startServer() {
         ? model
         : "gemini-3.7-flash";
 
+      // Order candidate models: requested model first, followed by high-throughput gemini-3.1-flash-lite and gemini-flash-latest
       const candidateModels = Array.from(new Set([
         requestedModel,
-        "gemini-3.7-flash",
-        "gemini-flash-latest",
         "gemini-3.1-flash-lite",
-        "gemini-3.1-pro-preview"
+        "gemini-flash-latest",
+        "gemini-3.7-flash"
       ].filter((m): m is string => Boolean(m))));
 
       for (const attemptModel of candidateModels) {
-        let attemptsForThisModel = 2;
+        let attemptsForThisModel = 1;
         while (attemptsForThisModel > 0) {
           try {
-            console.log(`[Diagnostic] Sending request to Gemini using model ${attemptModel}...`);
             response = await ai.models.generateContent({
               model: attemptModel,
               contents,
               config: finalConfig
             });
-            console.log(`[Diagnostic] Gemini request successful with model ${attemptModel}!`);
             break;
           } catch (error: any) {
             attemptsForThisModel--;
             lastError = error;
             const msg = error.message || String(error);
-            console.warn(`[Diagnostic] Gemini request failed for model ${attemptModel}. Error:`, msg);
 
-            if (attemptsForThisModel > 0 && (msg.includes("503") || msg.includes("UNAVAILABLE") || msg.includes("high demand") || msg.includes("429"))) {
-              console.log(`[Diagnostic] Retrying model ${attemptModel} after short delay...`);
-              await new Promise(resolve => setTimeout(resolve, 800));
+            // If 429 quota reached or model unavailable, cleanly cycle to the next candidate model
+            if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota") || msg.includes("503") || msg.includes("UNAVAILABLE")) {
+              break;
             }
           }
         }
         if (response) break;
       }
 
-      if (!response) {
-         console.error("[Diagnostic] All candidate models failed. Last error:", lastError?.message || lastError);
-         return res.status(503).json({ error: lastError?.message || "All Gemini candidate models unavailable. Please try again shortly." });
+      if (response) {
+        if (feature === "intelligence" && initialCredits !== undefined && uidForLog) {
+           const remainingCredits = initialCredits - 1;
+           const currentPurchased = userDocData?.purchasedCredits || Math.max(initialCredits, 3);
+           const currentUsed = userDocData?.usedCredits || 0;
+           const lgId = crypto.randomUUID();
+           
+           await updateFirestoreDocRest('users', uidForLog, {
+             intelligenceCredits: remainingCredits,
+             intelligenceActive: remainingCredits > 0,
+             purchasedCredits: currentPurchased,
+             usedCredits: currentUsed + 1,
+             lastUsageTimestamp: new Date().toISOString(),
+             lastSuccessfulAnalysisId: lgId,
+             updatedAt: new Date().toISOString()
+           });
+           
+           await createFirestoreDocRest('intelligence_transactions', lgId, {
+             uid: uidForLog,
+             action: "usage",
+             creditsBefore: initialCredits,
+             creditsAfter: remainingCredits,
+             timestamp: new Date().toISOString(),
+             analysisId: lgId,
+             analysisStatus: "success",
+             result: "Completed Market Intelligence Analysis"
+           });
+        }
+
+        const outData = { text: response.text, response };
+        geminiResponseCache.set(cacheKey, { timestamp: Date.now(), data: outData });
+        return res.json(outData);
       }
 
-      if (feature === "intelligence" && initialCredits !== undefined && uidForLog) {
-         const remainingCredits = initialCredits - 1;
-         const currentPurchased = userDocData?.purchasedCredits || Math.max(initialCredits, 3);
-         const currentUsed = userDocData?.usedCredits || 0;
-         const lgId = crypto.randomUUID();
-         
-         await updateFirestoreDocRest('users', uidForLog, {
-           intelligenceCredits: remainingCredits,
-           intelligenceActive: remainingCredits > 0,
-           purchasedCredits: currentPurchased,
-           usedCredits: currentUsed + 1,
-           lastUsageTimestamp: new Date().toISOString(),
-           lastSuccessfulAnalysisId: lgId,
-           updatedAt: new Date().toISOString()
-         });
-         
-         await createFirestoreDocRest('intelligence_transactions', lgId, {
-           uid: uidForLog,
-           action: "usage",
-           creditsBefore: initialCredits,
-           creditsAfter: remainingCredits,
-           timestamp: new Date().toISOString(),
-           analysisId: lgId,
-           analysisStatus: "success",
-           result: "Completed Market Intelligence Analysis"
-         });
-      }
-
-      res.json({ text: response.text, response });
+      // If all live models failed due to 503 or quota limits, throw into graceful algorithmic fallback below
+      throw new Error(lastError?.message || "Gemini model temporarily unavailable. Applying intelligent quantitative fallback.");
     } catch (error: any) {
       let errMsg = error.message || String(error);
       

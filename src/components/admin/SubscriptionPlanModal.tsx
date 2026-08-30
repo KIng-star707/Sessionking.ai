@@ -31,9 +31,9 @@ export default function SubscriptionPlanModal({ user, onClose, onUpdated }: Plan
 
   const planOptions = [
     { key: "free", name: "Free Tier", price: "$0/mo", desc: "Basic forex signals with standard latency" },
-    { key: "pro", name: "Pro Trader", price: "$49/mo", desc: "Full access to SMC & ICT AI setups, high-speed ticks" },
-    { key: "premium", name: "Premium VIP", price: "$99/mo", desc: "Multi-timeframe liquidity sweeps + institutional signals" },
-    { key: "institutional", name: "Institutional", price: "$499/mo", desc: "Direct quant orderflow engine, zero-latency WebSocket stream" }
+    { key: "pro", name: "Pro Trader", price: "$30/mo", desc: "Full access to all Major & Minor Forex pairs, D to 15M timeframes" },
+    { key: "premium", name: "Premium VIP", price: "$60/mo", desc: "All Forex pairs + Metals (Gold/Silver), Crypto & Exotic pairs" },
+    { key: "institutional", name: "Institutional", price: "$100/mo", desc: "Direct quant orderflow engine, scalping mode, zero-latency stream" }
   ];
 
   const handlePlanSelect = (planKey: string) => {

@@ -11,7 +11,6 @@ import { auth, db } from "../firebase";
 import { doc, getDoc, collection, addDoc } from "firebase/firestore";
 import { usePaystackPayment } from "../lib/paystack";
 import ChartIntelligenceEngine from "./ChartIntelligenceEngine";
-import PortfolioRiskViewer from "./PortfolioRiskViewer";
 
 interface OHLC {
   timestamp: string;
@@ -151,7 +150,7 @@ export default function IntelligenceTerminal({ user, userProfile, onExit, onProc
 
   const activePairs = useMemo(() => getActivePairsForSession(currentSession), [currentSession]);
   
-  const [activeTab, setActiveTab] = useState<"market" | "chart" | "risk">("market");
+  const [activeTab, setActiveTab] = useState<"market" | "chart">("market");
 
   const [pair, setPair] = useState(activePairs[0] || "EUR/USD");
   
@@ -473,10 +472,6 @@ Generate an institutional report matching the requested JSON schema exactly.`;
              
              <button onClick={() => setActiveTab("chart")} className={cn("flex-1 sm:flex-none px-3.5 sm:px-6 py-2 rounded-lg font-bold text-xs sm:text-sm uppercase tracking-widest transition-colors", activeTab === "chart" ? "bg-blue-500 text-white shadow-md" : "text-gray-400 hover:text-white")}>
                Chart Intelligence
-             </button>
-
-             <button onClick={() => setActiveTab("risk")} className={cn("flex-1 sm:flex-none px-3.5 sm:px-6 py-2 rounded-lg font-bold text-xs sm:text-sm uppercase tracking-widest transition-colors", activeTab === "risk" ? "bg-amber-500 text-black shadow-md" : "text-gray-400 hover:text-white")}>
-               Portfolio Risk
              </button>
            </div>
            
@@ -927,20 +922,12 @@ Generate an institutional report matching the requested JSON schema exactly.`;
 
           </div>
         </div>
-        ) : activeTab === "chart" ? (
+        ) : (
           <ChartIntelligenceEngine 
             user={user} 
             userProfile={userProfile} 
             usagesRemaining={usagesRemaining}
             onProceedToPayment={onProceedToPayment} 
-          />
-        ) : (
-          <PortfolioRiskViewer
-            user={user}
-            accountBalance={10000}
-            activeSignals={[]}
-            pendingSignals={[]}
-            tradeHistory={[]}
           />
         )}
 

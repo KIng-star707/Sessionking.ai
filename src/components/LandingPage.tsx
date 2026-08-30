@@ -315,24 +315,27 @@ export default function LandingPage({ user, onLoginClick, onEnterEngine, onForex
               <div className="absolute top-0 right-0 bg-gold text-matte-black text-xs font-bold px-3 py-1 rounded-bl-lg uppercase tracking-widest">
                 Recommended
               </div>
-              <h3 className="text-xl font-bold text-gold mb-2 flex items-center gap-2">PRO PLAN </h3>
-              <div className="text-3xl font-bold text-white mb-6">$49<span className="text-sm text-gray-500 font-normal">/mo</span></div>
+              <h3 className="text-xl font-bold text-gold mb-2 flex items-center gap-2">PRO PLAN</h3>
+              <div className="text-3xl font-bold text-white mb-6">$30<span className="text-sm text-gray-500 font-normal">/mo</span></div>
               <ul className="space-y-4 mb-8 flex-grow">
                 <li className="flex items-center gap-3 text-gray-300 text-sm">
-                  <CheckCircle2 className="w-4 h-4 text-gold" /> Full signal access
+                  <CheckCircle2 className="w-4 h-4 text-gold" /> All Major & Minor Forex Pairs
                 </li>
                 <li className="flex items-center gap-3 text-gray-300 text-sm">
-                  <CheckCircle2 className="w-4 h-4 text-gold" /> Advanced analytics
+                  <CheckCircle2 className="w-4 h-4 text-gold" /> All Timeframes (D → 15M)
                 </li>
                 <li className="flex items-center gap-3 text-gray-300 text-sm">
-                  <CheckCircle2 className="w-4 h-4 text-gold" /> Priority updates
+                  <CheckCircle2 className="w-4 h-4 text-gold" /> Live Signal Updates & Entry/SL/TP
                 </li>
                 <li className="flex items-center gap-3 text-gray-300 text-sm">
-                  <CheckCircle2 className="w-4 h-4 text-gold" /> Risk management tools
+                  <CheckCircle2 className="w-4 h-4 text-gold" /> Structured Risk Management Engine
                 </li>
               </ul>
-              <button className="w-full py-3 bg-gold hover:bg-gold/90 text-matte-black rounded-xl font-bold transition-colors flex items-center justify-center gap-2">
-                👉 Upgrade to Pro
+              <button 
+                onClick={user ? onEnterEngine : onLoginClick}
+                className="w-full py-3 bg-gold hover:bg-gold/90 text-matte-black rounded-xl font-bold transition-colors flex items-center justify-center gap-2"
+              >
+                👉 Upgrade to Pro ($30/mo)
               </button>
             </div>
           </div>

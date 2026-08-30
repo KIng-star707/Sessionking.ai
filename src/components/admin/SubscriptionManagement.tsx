@@ -56,9 +56,9 @@ export default function SubscriptionManagement() {
         let amount = 0;
         let pName = 'Free';
         if (plan === 'starter') { amount = 15; pName = 'Starter'; }
-        else if (plan === 'pro') { amount = 49; pName = 'Pro'; }
-        else if (plan === 'premium') { amount = 99; pName = 'Premium'; }
-        else if (plan === 'institutional') { amount = 499; pName = 'Institutional'; }
+        else if (plan === 'pro') { amount = 30; pName = 'Pro'; }
+        else if (plan === 'premium') { amount = 60; pName = 'Premium'; }
+        else if (plan === 'institutional') { amount = 100; pName = 'Institutional'; }
 
         if (amount > 0 && isActive) {
           activeCount++;
@@ -198,9 +198,9 @@ export default function SubscriptionManagement() {
           >
             <option value="ALL" className="bg-matte-black text-white">All Users</option>
             <option value="ACTIVE_PAID" className="bg-matte-black text-white">Active Paid Only</option>
-            <option value="PRO" className="bg-matte-black text-white">Pro Tier ($49)</option>
-            <option value="PREMIUM" className="bg-matte-black text-white">Premium Tier ($99)</option>
-            <option value="INSTITUTIONAL" className="bg-matte-black text-white">Institutional ($499)</option>
+            <option value="PRO" className="bg-matte-black text-white">Pro Tier ($30)</option>
+            <option value="PREMIUM" className="bg-matte-black text-white">Premium Tier ($60)</option>
+            <option value="INSTITUTIONAL" className="bg-matte-black text-white">Institutional ($100)</option>
             <option value="FREE" className="bg-matte-black text-white">Free Tier</option>
           </select>
           <button 
