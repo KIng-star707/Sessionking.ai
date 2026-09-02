@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { LayoutDashboard, Users, Activity, Settings, Bell, CreditCard, BarChart3, ScrollText, ShieldAlert, Menu, X, MessageSquare, Megaphone, Brain, ArrowLeft, Cpu } from "lucide-react";
+import { LayoutDashboard, Users, Activity, Settings, Bell, CreditCard, BarChart3, ScrollText, ShieldAlert, Menu, X, MessageSquare, Megaphone, Brain, ArrowLeft, Cpu, Radio } from "lucide-react";
 
 // Import sub-components
 import DashboardOverview from "./admin/DashboardOverview";
@@ -15,8 +15,9 @@ import SystemSettings from "./admin/SystemSettings";
 import SupportTickets from "./admin/SupportTickets";
 import AdminIntelligenceControl from "./AdminIntelligenceControl";
 import SystemHealthWidget from "./SystemHealthWidget";
+import MarketDataDiagnostics from "./MarketDataDiagnostics";
 
-type AdminTab = "overview" | "users" | "signals" | "engine" | "subscriptions" | "broadcast" | "analytics" | "settings" | "logs" | "support" | "intelligence" | "health";
+type AdminTab = "overview" | "users" | "signals" | "engine" | "market_sync" | "subscriptions" | "broadcast" | "analytics" | "settings" | "logs" | "support" | "intelligence" | "health";
 
 export default function AdminPanel({ user, onExit }: { user: any, onExit: () => void }) {
 
@@ -25,6 +26,7 @@ export default function AdminPanel({ user, onExit }: { user: any, onExit: () => 
 
   const tabs = [
     { id: "overview", label: "Dashboard", icon: <LayoutDashboard className="w-5 h-5" /> },
+    { id: "market_sync", label: "Market Feed & Sync", icon: <Radio className="w-5 h-5 text-gold" /> },
     { id: "users", label: "Users", icon: <Users className="w-5 h-5" /> },
     { id: "support", label: "Support Tickets", icon: <MessageSquare className="w-5 h-5" /> },
     { id: "signals", label: "Signals", icon: <Activity className="w-5 h-5" /> },
@@ -107,6 +109,7 @@ export default function AdminPanel({ user, onExit }: { user: any, onExit: () => 
             transition={{ duration: 0.2 }}
           >
             {activeTab === "overview" && <DashboardOverview />}
+            {activeTab === "market_sync" && <MarketDataDiagnostics />}
             {activeTab === "users" && <UserManagement />}
             {activeTab === "support" && <SupportTickets />}
             {activeTab === "signals" && <SignalManagement />}

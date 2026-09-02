@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { collection, query, where, onSnapshot, updateDoc, doc, addDoc } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { usePriceFeed } from "../hooks/usePriceFeed";
 import type { Signal } from "../types";
@@ -213,59 +213,11 @@ export function TradeTracker({ user }: TradeTrackerProps) {
           ? (signal.marketRegime === 'REVERSAL_TRANSITION' ? 'REGIME_CHANGE' : signal.marketRegime === 'HIGH_VOLATILITY' ? 'LIQUIDITY_REVERSAL' : 'STOP_PLACEMENT')
           : null;
 
-        // 1. Create notification with rich metadata and authoritative disclaimer
-        await addDoc(collection(db, "users", user.uid, "notifications"), {
-          userId: user.uid,
-          notificationId: `${tradeId}_${hitSL ? 'SL' : 'TP'}`,
-          type: "TRADE_ALERT",
-          title,
-          message,
-          priority: hitSL ? "HIGH" : "MEDIUM",
-          isRead: false,
-          timestamp: new Date().toISOString(),
-          metadata: {
-            tradeId: tradeId || "",
-            pair: signal.pair || "",
-            direction: signal.type || "",
-            entryPrice: entryPrice || 0,
-            exitPrice: exitPrice || 0,
-            stopLoss: sl || 0,
-            takeProfit: tp1 || 0,
-            hitType: hitSL ? 'SL' : 'TP',
-            pips: Math.abs(realizedPips) || 0,
-            realizedPips: realizedPips || 0,
-            dataSource: 'FCS_API',
-            disclaimer: 'FCS market-data TP/SL event. Execution on your broker may vary slightly based on broker-specific spreads and liquidity.',
-            probableCause: probableCause || null,
-            reasonDetails: reasonDetails || ""
-          }
-        });
-
-        // 2. Add to immutable trade history
-        await addDoc(collection(db, "users", user.uid, "tradeHistory"), {
-          tradeId: tradeId || "",
-          pair: signal.pair || "",
-          direction: signal.type || "",
-          entryPrice: entryPrice || 0,
-          exitPrice: exitPrice || 0,
-          stopLoss: sl || 0,
-          takeProfit: tp1 || 0,
-          outcome: finalOutcome,
-          createdAt: signal.timestamp || new Date().toISOString(),
-          closedAt: new Date().toISOString(),
-          pips: realizedPips || 0,
-          session: signal.session || "Unknown",
-          mode: signal.tradingMode || "Unknown",
-          dataSource: "FCS_API",
-          probableCause: probableCause || null,
-          disclaimer: "FCS market-data TP/SL event"
-        });
-
-        // 3. Atomically update the signal to terminal closed status
+        // 1. PRIMARY OPERATION: Atomically update the signal to terminal closed status FIRST
         const signalDocId = signal.id || tradeId;
         const signalRef = doc(db, "users", user.uid, "signals", signalDocId);
         
-        await updateDoc(signalRef, {
+        await setDoc(signalRef, {
           status: finalStatus,
           trade_status: finalStatus,
           closedAt: new Date().toISOString(),
@@ -274,16 +226,90 @@ export function TradeTracker({ user }: TradeTrackerProps) {
           pipsRealized: realizedPips,
           notifiedSL: hitSL ? true : (signal.notifiedSL || false),
           notifiedTP1: hitTP ? true : (signal.notifiedTP1 || false)
-        });
+        }, { merge: true });
 
-        // 4. Remove from local active monitoring state immediately
+        // If tradeId is distinct from signalDocId, update both to guarantee database consistency
+        if (tradeId && tradeId !== signalDocId) {
+          await setDoc(doc(db, "users", user.uid, "signals", tradeId), {
+            status: finalStatus,
+            trade_status: finalStatus,
+            closedAt: new Date().toISOString(),
+            closedPrice: exitPrice,
+            finalOutcome,
+            pipsRealized: realizedPips,
+            notifiedSL: hitSL ? true : (signal.notifiedSL || false),
+            notifiedTP1: hitTP ? true : (signal.notifiedTP1 || false)
+          }, { merge: true }).catch(() => {});
+        }
+
+        // 2. Remove from local active monitoring state immediately
         setActiveSignals(prev => prev.filter(s => (s.id !== signalDocId && s.tradeId !== tradeId)));
+
+        // 3. SECONDARY OPERATION: Idempotently add to immutable trade history
+        try {
+          const historyDocId = `${tradeId}_${finalStatus}`;
+          await setDoc(doc(db, "users", user.uid, "tradeHistory", historyDocId), {
+            tradeId: tradeId || "",
+            pair: signal.pair || "",
+            direction: signal.type || "",
+            entryPrice: entryPrice || 0,
+            exitPrice: exitPrice || 0,
+            stopLoss: sl || 0,
+            takeProfit: tp1 || 0,
+            outcome: finalOutcome,
+            createdAt: signal.timestamp || new Date().toISOString(),
+            closedAt: new Date().toISOString(),
+            pips: realizedPips || 0,
+            session: signal.session || "Unknown",
+            mode: signal.tradingMode || "Unknown",
+            dataSource: "FCS_API",
+            probableCause: probableCause || null,
+            disclaimer: "FCS market-data TP/SL event"
+          }, { merge: true });
+        } catch (histErr) {
+          console.warn(`[TRADE TRACKER] Trade history write notice for ${tradeId}:`, histErr);
+        }
+
+        // 4. SECONDARY OPERATION: Idempotently create notification with rich metadata
+        try {
+          const notifDocId = `${tradeId}_${hitSL ? 'SL' : 'TP'}`;
+          await setDoc(doc(db, "users", user.uid, "notifications", notifDocId), {
+            userId: user.uid,
+            notificationId: notifDocId,
+            type: "TRADE_ALERT",
+            title,
+            message,
+            priority: hitSL ? "HIGH" : "MEDIUM",
+            isRead: false,
+            timestamp: new Date().toISOString(),
+            metadata: {
+              tradeId: tradeId || "",
+              pair: signal.pair || "",
+              direction: signal.type || "",
+              entryPrice: entryPrice || 0,
+              exitPrice: exitPrice || 0,
+              stopLoss: sl || 0,
+              takeProfit: tp1 || 0,
+              hitType: hitSL ? 'SL' : 'TP',
+              pips: Math.abs(realizedPips) || 0,
+              realizedPips: realizedPips || 0,
+              dataSource: 'FCS_API',
+              disclaimer: 'FCS market-data TP/SL event. Execution on your broker may vary slightly based on broker-specific spreads and liquidity.',
+              probableCause: probableCause || null,
+              reasonDetails: reasonDetails || ""
+            }
+          }, { merge: true });
+        } catch (notifErr) {
+          console.warn(`[TRADE TRACKER] Notification write notice for ${tradeId}:`, notifErr);
+        }
 
       } catch (err) {
         console.error(`[TRADE TRACKER] Error processing TP/SL for ${tradeId}:`, err);
-        processedHits.current.delete(keySL);
-        processedHits.current.delete(keyTP);
-        processedHits.current.delete(keyCLOSED);
+        // Do not release keyCLOSED if the trade hit terminal state, preventing infinite error retry loops
+        if (!processedHits.current.has(keyCLOSED)) {
+          processedHits.current.delete(keySL);
+          processedHits.current.delete(keyTP);
+        }
       }
     });
   }, [prices, states, activeSignals, user]);

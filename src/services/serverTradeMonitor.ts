@@ -218,8 +218,15 @@ class ServerTradeMonitor {
     }
 
     const marketState = getCentralMarketState(pair);
-    if (!marketState || marketState.freshness === 'UNAVAILABLE') {
-      return; // Await authoritative data
+    if (
+      !marketState || 
+      marketState.freshness === 'UNAVAILABLE' || 
+      marketState.freshness === 'STALE' || 
+      marketState.dataStatus === 'STALE' || 
+      marketState.dataStatus === 'OFFLINE'
+    ) {
+      // REQUIREMENT: If market data is stale or unavailable, DO NOT confirm TP/SL.
+      return; // Await fresh authoritative data
     }
 
     const currentBid = marketState.bid || marketState.mid;
@@ -363,7 +370,8 @@ class ServerTradeMonitor {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const baseUrl = `https://firestore.googleapis.com/v1/projects/${config.projectId}/databases/(default)/documents`;
+      const dbId = config.firestoreDatabaseId || '(default)';
+      const baseUrl = `https://firestore.googleapis.com/v1/projects/${config.projectId}/databases/${dbId}/documents`;
 
       // A. Update the Signal doc to terminal CLOSED
       const signalUrl = `${baseUrl}/users/${userId}/signals/${docId || tradeId}?updateMask.fieldPaths=status&updateMask.fieldPaths=trade_status&updateMask.fieldPaths=closedAt&updateMask.fieldPaths=closedPrice&updateMask.fieldPaths=finalOutcome&updateMask.fieldPaths=pipsRealized&updateMask.fieldPaths=notifiedSL&updateMask.fieldPaths=notifiedTP1`;
@@ -387,8 +395,8 @@ class ServerTradeMonitor {
         body: JSON.stringify(updatePayload)
       }).catch(e => console.warn("[SERVER TRADE MONITOR] Signal doc update error:", e.message));
 
-      // B. Create Immutable Trade History entry
-      const historyUrl = `${baseUrl}/users/${userId}/tradeHistory`;
+      // B. Create Immutable Trade History entry (idempotent write)
+      const historyUrl = `${baseUrl}/users/${userId}/tradeHistory/${tradeId}_${finalStatus}`;
       const historyPayload = {
         fields: toRestFields({
           tradeId,
@@ -410,13 +418,13 @@ class ServerTradeMonitor {
       };
 
       await fetch(historyUrl, {
-        method: 'POST',
+        method: 'PATCH',
         headers,
         body: JSON.stringify(historyPayload)
       }).catch(e => console.warn("[SERVER TRADE MONITOR] History insert error:", e.message));
 
-      // C. Send Notification
-      const notifUrl = `${baseUrl}/users/${userId}/notifications`;
+      // C. Send Notification (idempotent write)
+      const notifUrl = `${baseUrl}/users/${userId}/notifications/${tradeId}_${hitSL ? 'SL' : 'TP'}`;
       const title = hitSL ? `❌ Stop Loss Reached: ${pair}` : `✅ Take Profit Reached: ${pair}`;
       const message = hitSL
         ? `Server Trade Supervisor: Your ${direction} position on ${pair} touched Stop Loss at ${stopLoss}. Position closed. (Realized: ${realizedPips} pips).`
@@ -450,7 +458,7 @@ class ServerTradeMonitor {
       };
 
       await fetch(notifUrl, {
-        method: 'POST',
+        method: 'PATCH',
         headers,
         body: JSON.stringify(notifPayload)
       }).catch(e => console.warn("[SERVER TRADE MONITOR] Notification insert error:", e.message));

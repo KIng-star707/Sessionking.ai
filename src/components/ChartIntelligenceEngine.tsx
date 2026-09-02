@@ -226,7 +226,7 @@ export default function ChartIntelligenceEngine({ user, userProfile, usagesRemai
 
       const response = await fetchGeminiProxy({
         feature: "intelligence",
-        model: "gemini-3.7-flash",
+        model: "gemini-3.5-flash-lite",
         contents: { parts },
         config: {
           systemInstruction: "You are the advanced Chart Vision Intel Core of SESSIONKING Terminal.",
@@ -610,11 +610,11 @@ export default function ChartIntelligenceEngine({ user, userProfile, usagesRemai
                  </div>
 
                  {/* Live Chart View */}
-                 <div className="glass-card p-6 rounded-2xl border border-white/5 bg-deep-blue/10 h-[500px] flex flex-col">
-                   <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-5 flex items-center gap-2 shrink-0">
+                 <div className="glass-card p-6 rounded-2xl border border-white/5 bg-deep-blue/10 min-h-[520px] flex flex-col">
+                   <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2 shrink-0">
                      <BarChart2 className="w-4 h-4 text-blue-400" /> Live Market Verification
                    </h3>
-                   <div className="flex-1 min-h-[400px]">
+                   <div className="flex-1 min-h-[420px]">
                      <LiveAnalysisChart pair={report.detectedPair} bias={report.bias as any} technicalLevels={report.technicalLevels} />
                    </div>
                  </div>

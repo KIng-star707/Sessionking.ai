@@ -363,7 +363,7 @@ Generate an institutional report matching the requested JSON schema exactly.`;
 
       const response = await fetchGeminiProxy({
         feature: "intelligence",
-        model: "gemini-3.7-flash",
+        model: "gemini-3.5-flash-lite",
         contents: prompt,
         config: {
           systemInstruction: "You are the Intelligence Core of a premium institutional trading terminal.",
@@ -896,20 +896,20 @@ Generate an institutional report matching the requested JSON schema exactly.`;
 
                   {/* Live Chart View */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                    <div className="glass-card p-6 rounded-2xl border border-white/10 shadow-lg relative h-[400px] flex flex-col">
+                    <div className="glass-card p-6 rounded-2xl border border-white/10 shadow-lg relative min-h-[480px] flex flex-col">
                       <h3 className="text-xs font-bold text-gold uppercase tracking-widest flex items-center gap-2 mb-4 shrink-0">
                         <Target className="w-4 h-4" /> Live Technical Data
                       </h3>
-                      <div className="flex-1 min-h-[300px]">
+                      <div className="flex-1 min-h-[380px]">
                         <LiveAnalysisChart pair={pair} bias={report.bias as any} technicalLevels={report.technicalLevels} />
                       </div>
                     </div>
                     {report.fundamentalScores && (
-                      <div className="glass-card p-6 rounded-2xl border border-white/10 shadow-lg relative h-[400px] flex flex-col">
+                      <div className="glass-card p-6 rounded-2xl border border-white/10 shadow-lg relative min-h-[480px] flex flex-col">
                         <h3 className="text-xs font-bold text-gold uppercase tracking-widest flex items-center gap-2 mb-4 shrink-0">
                           <Activity className="w-4 h-4" /> Fundamental Context
                         </h3>
-                        <div className="flex-1 min-h-[300px]">
+                        <div className="flex-1 min-h-[380px]">
                           <FundamentalAnalysisChart scores={report.fundamentalScores} />
                         </div>
                       </div>

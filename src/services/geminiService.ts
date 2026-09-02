@@ -34,7 +34,7 @@ export async function fetchGeminiProxy(payload: any): Promise<{text: string; res
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 35000); // 35s timeout
 
       const res = await fetch("/api/gemini", {
         method: "POST",
@@ -311,7 +311,7 @@ Return exactly ONE JSON object matching this schema:
       try {
         response = await fetchGeminiProxy({
           feature: "signal",
-          model: "gemini-3.7-flash",
+          model: "gemini-3.5-flash-lite",
           contents: [{ parts: [{ text: prompt }] }],
           config: { 
             responseMimeType: "application/json",
@@ -1004,7 +1004,7 @@ export async function runBacktest(pair: string, timeframe: string, tradingMode: 
       try {
         response = await fetchGeminiProxy({
           feature: "backtest",
-          model: "gemini-3.7-flash",
+          model: "gemini-3.5-flash-lite",
           contents: [{ parts: [{ text: prompt }] }],
         });
         break;
