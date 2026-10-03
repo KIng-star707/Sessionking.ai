@@ -126,9 +126,12 @@ class ServerTradeMonitor {
     return this.auditLogs.slice(0, 100);
   }
 
+  private auditSeq = 0;
+
   public logAuditEvent(entry: Omit<AuditLogEntry, 'id' | 'timestamp'>) {
+    this.auditSeq = (this.auditSeq + 1) % 1000000;
     const fullEntry: AuditLogEntry = {
-      id: `AUDIT_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `AUDIT_${Date.now()}_${this.auditSeq.toString(36).toUpperCase()}`,
       timestamp: new Date().toISOString(),
       ...entry
     };

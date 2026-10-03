@@ -72,7 +72,7 @@ export interface Signal {
   tradeId?: string;
   pair: string;
   strategy: string; // E.g. "Primary Scenario: Breakout"
-  trade_status?: 'ACTIVE' | 'WAIT' | 'BLOCKED' | 'ALLOWED' | 'CLOSED_TP' | 'CLOSED_SL' | 'EXPIRED' | 'CANCELLED';
+  trade_status?: 'SETUP_DETECTED' | 'ENTRY_ARMED' | 'ACTIVE' | 'FILLED' | 'WAIT' | 'BLOCKED' | 'ALLOWED' | 'CLOSED_TP' | 'CLOSED_SL' | 'TP1_REACHED' | 'TP2_REACHED' | 'TP3_REACHED' | 'STOPPED_OUT' | 'INVALIDATED' | 'EXPIRED' | 'CANCELLED';
   market_quality_score?: number;
   signal_tier?: string;
   entry_type?: string;
@@ -435,10 +435,14 @@ export type MarketRegime =
   | 'TRENDING_BULLISH'
   | 'TRENDING_BEARISH'
   | 'RANGING'
+  | 'BREAKOUT'
   | 'BREAKOUT_EXPANSION'
-  | 'REVERSAL_TRANSITION'
+  | 'ACCUMULATION'
+  | 'DISTRIBUTION'
   | 'HIGH_VOLATILITY'
   | 'LOW_LIQUIDITY'
+  | 'UNCERTAIN'
+  | 'REVERSAL_TRANSITION'
   | 'NEWS_EVENT_RISK'
   | 'UNKNOWN';
 

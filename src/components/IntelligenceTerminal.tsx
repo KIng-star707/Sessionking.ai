@@ -363,7 +363,7 @@ Generate an institutional report matching the requested JSON schema exactly.`;
 
       const response = await fetchGeminiProxy({
         feature: "intelligence",
-        model: "gemini-3.5-flash-lite",
+        model: "gemini-2.5-flash",
         contents: prompt,
         config: {
           systemInstruction: "You are the Intelligence Core of a premium institutional trading terminal.",

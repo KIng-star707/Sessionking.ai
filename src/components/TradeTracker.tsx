@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { collection, query, where, onSnapshot, doc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { usePriceFeed } from "../hooks/usePriceFeed";
+import { marketDataService } from "../lib/marketDataService";
 import type { Signal } from "../types";
 
 interface TradeTrackerProps {
@@ -132,35 +133,31 @@ export function TradeTracker({ user }: TradeTrackerProps) {
         let verifiedHitSL = false;
         let verifiedHitTP = false;
 
-        const verifyRes = await fetch(`/api/market-data?pair=${encodeURIComponent(signal.pair)}`);
-        if (verifyRes.ok && verifyRes.status === 200) {
-          const verifyData = await verifyRes.json();
-          if (verifyData?.state?.mid) {
-            const marketState = verifyData.state;
-            const checkBid = marketState.bid || marketState.mid;
-            const checkAsk = marketState.ask || marketState.mid;
-            verifiedPrice = marketState.mid;
+        const verifyData = await marketDataService.fetchMarketData(signal.pair);
+        if (verifyData?.state?.mid) {
+          const marketState = verifyData.state;
+          const checkBid = marketState.bid || marketState.mid;
+          const checkAsk = marketState.ask || marketState.mid;
+          verifiedPrice = marketState.mid;
 
-            if (signal.type === 'BUY') {
-              if (checkBid <= sl) verifiedHitSL = true;
-              if (checkBid >= tp1) verifiedHitTP = true;
-            } else if (signal.type === 'SELL') {
-              if (checkAsk >= sl) verifiedHitSL = true;
-              if (checkAsk <= tp1) verifiedHitTP = true;
-            }
-          } else if (Array.isArray(verifyData?.data) && verifyData.data.length > 0) {
-            const latestCandle = verifyData.data[verifyData.data.length - 1];
-            verifiedPrice = latestCandle.close;
-            if (signal.type === 'BUY') {
-              if (verifiedPrice <= sl) verifiedHitSL = true;
-              if (verifiedPrice >= tp1) verifiedHitTP = true;
-            } else if (signal.type === 'SELL') {
-              if (verifiedPrice >= sl) verifiedHitSL = true;
-              if (verifiedPrice <= tp1) verifiedHitTP = true;
-            }
+          if (signal.type === 'BUY') {
+            if (checkBid <= sl) verifiedHitSL = true;
+            if (checkBid >= tp1) verifiedHitTP = true;
+          } else if (signal.type === 'SELL') {
+            if (checkAsk >= sl) verifiedHitSL = true;
+            if (checkAsk <= tp1) verifiedHitTP = true;
+          }
+        } else if (Array.isArray(verifyData?.data) && verifyData.data.length > 0) {
+          const latestCandle = verifyData.data[verifyData.data.length - 1];
+          verifiedPrice = latestCandle.close;
+          if (signal.type === 'BUY') {
+            if (verifiedPrice <= sl) verifiedHitSL = true;
+            if (verifiedPrice >= tp1) verifiedHitTP = true;
+          } else if (signal.type === 'SELL') {
+            if (verifiedPrice >= sl) verifiedHitSL = true;
+            if (verifiedPrice <= tp1) verifiedHitTP = true;
           }
         } else {
-          // Fallback to locally stream-verified FCS price if endpoint was warming up
           verifiedPrice = currentPrice;
           if (signal.type === 'BUY') {
             if (verifiedPrice <= sl) verifiedHitSL = true;

@@ -1,9 +1,15 @@
 import { useState, useEffect } from 'react';
 import type { MarketState } from '../services/marketDataService';
+import { marketDataService } from '../lib/marketDataService';
 
 export function usePriceFeed() {
-  const [prices, setPrices] = useState<Record<string, number>>({});
-  const [states, setStates] = useState<Record<string, MarketState>>({});
+  const [prices, setPrices] = useState<Record<string, number>>(() => {
+    const all = marketDataService.getAllStates();
+    const init: Record<string, number> = {};
+    Object.keys(all).forEach(k => { init[k] = all[k].mid; });
+    return init;
+  });
+  const [states, setStates] = useState<Record<string, MarketState>>(() => marketDataService.getAllStates());
   const [directions, setDirections] = useState<Record<string, 'up' | 'down' | 'none'>>({});
   const [isConnected, setIsConnected] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
@@ -33,32 +39,72 @@ export function usePriceFeed() {
           const message = JSON.parse(event.data);
           
           if (message.type === 'INIT') {
-            if (message.data) setPrices(message.data);
-            if (message.states) setStates(message.states);
+            if (message.states) {
+              Object.values(message.states).forEach((st: any) => {
+                marketDataService.updateState(st);
+              });
+              setStates(marketDataService.getAllStates());
+            }
+            if (message.data) {
+              Object.entries(message.data).forEach(([p, pr]) => {
+                marketDataService.ingestWebSocketUpdate(p, pr as number);
+              });
+              setPrices(message.data);
+            }
             if (message.timestamp) setLastSyncTime(message.timestamp);
           } else if (message.type === 'UPDATE') {
             if (message.timestamp) setLastSyncTime(message.timestamp);
+            
+            // Validate through central MarketDataService with sequence and timestamp checks
+            const acceptedData: Record<string, number> = {};
+            const acceptedStates: Record<string, MarketState> = {};
+
             if (message.states) {
-              setStates(prev => ({ ...prev, ...message.states }));
-            }
-            if (message.data) {
-              setPrices(prev => {
-                const newPrices = { ...prev, ...message.data };
-                const newDirections: Record<string, 'up' | 'down' | 'none'> = {};
-                
-                Object.keys(message.data).forEach(pair => {
-                  if (prev[pair]) {
-                    if (message.data[pair] > prev[pair]) newDirections[pair] = 'up';
-                    else if (message.data[pair] < prev[pair]) newDirections[pair] = 'down';
-                    else newDirections[pair] = 'none';
-                  }
-                });
-                
-                if (isActive) {
-                  setDirections(prevDir => ({ ...prevDir, ...newDirections }));
+              Object.entries(message.states).forEach(([p, st]: [string, any]) => {
+                const accepted = marketDataService.updateState(st);
+                if (accepted) {
+                  acceptedStates[p] = st;
                 }
-                return newPrices;
               });
+              if (Object.keys(acceptedStates).length > 0) {
+                setStates(prev => ({ ...prev, ...acceptedStates }));
+              }
+            }
+
+            if (message.data) {
+              Object.entries(message.data).forEach(([pair, pr]) => {
+                const priceNum = pr as number;
+                const accepted = marketDataService.updateState({
+                  pair,
+                  symbol: pair,
+                  mid: priceNum,
+                  timestamp: message.timestamp || new Date().toISOString(),
+                  source: 'LIVE_FEED'
+                });
+                if (accepted) {
+                  acceptedData[pair] = priceNum;
+                }
+              });
+
+              if (Object.keys(acceptedData).length > 0) {
+                setPrices(prev => {
+                  const newPrices = { ...prev, ...acceptedData };
+                  const newDirections: Record<string, 'up' | 'down' | 'none'> = {};
+                  
+                  Object.keys(acceptedData).forEach(pair => {
+                    if (prev[pair]) {
+                      if (acceptedData[pair] > prev[pair]) newDirections[pair] = 'up';
+                      else if (acceptedData[pair] < prev[pair]) newDirections[pair] = 'down';
+                      else newDirections[pair] = 'none';
+                    }
+                  });
+                  
+                  if (isActive) {
+                    setDirections(prevDir => ({ ...prevDir, ...newDirections }));
+                  }
+                  return newPrices;
+                });
+              }
             }
           }
         } catch (err) {

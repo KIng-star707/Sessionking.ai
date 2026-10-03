@@ -231,7 +231,9 @@ export default function AuthPage({ onViewLegal }: { onViewLegal?: (section: "ter
       timer = setInterval(() => {
         if (popup.closed) {
           cleanUp();
-          reject(new Error("Authentication window closed."));
+          const err: any = new Error("Authentication window closed.");
+          err.code = "auth/popup-closed-by-user";
+          reject(err);
         }
       }, 1000);
     });
@@ -309,6 +311,16 @@ export default function AuthPage({ onViewLegal }: { onViewLegal?: (section: "ter
         await updateDoc(userDocRef, updatePayload);
       }
     } catch (err: any) {
+      if (
+        err.code === 'auth/popup-closed-by-user' ||
+        err.message?.includes('popup-closed-by-user') ||
+        err.message?.includes('Authentication window closed') ||
+        err.message?.includes('closed by user')
+      ) {
+        console.log(`[Auth] Authentication window closed by user for ${provider}.`);
+        setError(null);
+        return;
+      }
       console.error(`Iframe login flow error (${provider}):`, err);
       setError(err.message || `An error occurred during ${provider === 'google' ? 'Google' : 'Phone'} Sign-in.`);
     } finally {
@@ -380,9 +392,12 @@ export default function AuthPage({ onViewLegal }: { onViewLegal?: (section: "ter
 
   const setupRecaptcha = () => {
     if (!(window as any).recaptchaVerifier) {
-      (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        'size': 'invisible',
-      });
+      const container = document.getElementById('recaptcha-container');
+      if (container) {
+        (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+          'size': 'invisible',
+        });
+      }
     }
   };
 
@@ -859,14 +874,9 @@ export default function AuthPage({ onViewLegal }: { onViewLegal?: (section: "ter
                 <button
                   type="button"
                   onClick={() => {
-                    const isIframe = window.self !== window.top;
-                    if (isIframe) {
-                      handleIframeLoginFlow('phone');
-                    } else {
-                      setView('phone-login');
-                      setError(null);
-                      setSuccess(null);
-                    }
+                    setView('phone-login');
+                    setError(null);
+                    setSuccess(null);
                   }}
                   disabled={isLoading}
                   className="flex-1 py-3 px-4 rounded-xl border border-white/10 bg-black/30 hover:bg-white/5 active:bg-white/10 transition-colors flex items-center justify-center gap-2"

@@ -170,8 +170,8 @@ class SystemHealthService {
       const lastCheckTime = new Date(sub.lastChecked).getTime();
       const ageMs = now - lastCheckTime;
 
-      // Simulate subtle latency variations
-      const simulatedLatency = Math.max(10, Math.round(sub.latencyMs + (Math.random() - 0.5) * 15));
+      // Preserve authentic latency measurement
+      const actualLatency = Math.max(10, Math.round(sub.latencyMs));
 
       let newStatus = sub.status;
       let newDetails = sub.details;
@@ -183,7 +183,7 @@ class SystemHealthService {
 
       return {
         ...sub,
-        latencyMs: simulatedLatency,
+        latencyMs: actualLatency,
         lastChecked: new Date().toISOString(),
         status: newStatus,
         details: newDetails

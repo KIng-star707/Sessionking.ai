@@ -226,7 +226,7 @@ export default function ChartIntelligenceEngine({ user, userProfile, usagesRemai
 
       const response = await fetchGeminiProxy({
         feature: "intelligence",
-        model: "gemini-3.5-flash-lite",
+        model: "gemini-2.5-flash",
         contents: { parts },
         config: {
           systemInstruction: "You are the advanced Chart Vision Intel Core of SESSIONKING Terminal.",

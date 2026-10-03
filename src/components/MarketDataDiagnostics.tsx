@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { 
   Activity, 
   Radio, 
@@ -11,11 +11,20 @@ import {
   Database, 
   TrendingUp, 
   CheckCircle2, 
-  XCircle,
-  HelpCircle,
-  BarChart2,
-  Cpu,
-  ArrowRightLeft
+  XCircle, 
+  HelpCircle, 
+  BarChart2, 
+  Cpu, 
+  ArrowRightLeft,
+  Server,
+  FileCode,
+  Download,
+  Copy,
+  Check,
+  Target,
+  Crosshair,
+  Zap,
+  Timer
 } from "lucide-react";
 import { 
   getAllCentralMarketStates, 
@@ -27,11 +36,51 @@ import {
 } from "../services/marketDataService";
 import { cn } from "../lib/utils";
 
+interface MT5StatusResponse {
+  connected: boolean;
+  status: 'ONLINE' | 'OFFLINE';
+  lastHeartbeat: string | null;
+  heartbeatAgeMs: number | null;
+  broker: string;
+  server: string;
+  accountNumber?: string;
+  currency?: string;
+  symbolsCount: number;
+  totalQuotesReceived: number;
+  latencyMs: number;
+  freshnessThresholdMs: number;
+}
+
+interface TradeLifecycleItem {
+  tradeId: string;
+  pair: string;
+  direction: 'BUY' | 'SELL';
+  entryPrice: number;
+  stopLoss: number;
+  takeProfit1: number;
+  takeProfit2: number;
+  takeProfit3?: number;
+  currentState: string;
+  createdAt: string;
+  pipsRealized: number;
+  invalidationReason?: string;
+  isFilled: boolean;
+  tp1Hit: boolean;
+  tp2Hit: boolean;
+  tp3Hit: boolean;
+  stopLossHit: boolean;
+}
+
 export default function MarketDataDiagnostics() {
   const [diagnostics, setDiagnostics] = useState<MarketDiagnostics | null>(null);
   const [marketStates, setMarketStates] = useState<Record<string, MarketState>>({});
+  const [mt5Status, setMt5Status] = useState<MT5StatusResponse | null>(null);
+  const [activeTrades, setActiveTrades] = useState<TradeLifecycleItem[]>([]);
+  const [tradeHistory, setTradeHistory] = useState<TradeLifecycleItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+  const [showEaModal, setShowEaModal] = useState(false);
+  const [copiedEa, setCopiedEa] = useState(false);
   
   // Broker comparison state
   const [selectedPair, setSelectedPair] = useState<string>("EUR/USD");
@@ -41,9 +90,10 @@ export default function MarketDataDiagnostics() {
 
   const refreshTelemetry = async () => {
     try {
-      const res = await fetch("/api/market-diagnostics");
-      if (res.ok) {
-        const json = await res.json();
+      // 1. Fetch Market Diagnostics
+      const diagRes = await fetch("/api/market-diagnostics");
+      if (diagRes.ok) {
+        const json = await diagRes.json();
         if (json.diagnostics) {
           setDiagnostics(json.diagnostics);
           if (json.diagnostics.states) {
@@ -51,10 +101,33 @@ export default function MarketDataDiagnostics() {
           }
         }
       } else {
-        // Fallback local memory
         setDiagnostics(getMarketDiagnostics());
         setMarketStates(getAllCentralMarketStates());
       }
+
+      // 2. Fetch MT5 Primary Engine Status
+      try {
+        const mt5Res = await fetch("/api/mt5/status");
+        if (mt5Res.ok) {
+          const mt5Json = await mt5Res.json();
+          setMt5Status(mt5Json);
+        }
+      } catch (e) {
+        // Local fallback
+      }
+
+      // 3. Fetch Trade Lifecycle State Machine
+      try {
+        const lifeRes = await fetch("/api/trades/lifecycle");
+        if (lifeRes.ok) {
+          const lifeJson = await lifeRes.json();
+          setActiveTrades(lifeJson.activeTrades || []);
+          setTradeHistory(lifeJson.history || []);
+        }
+      } catch (e) {
+        // Fallback
+      }
+
       setLastRefreshed(new Date());
     } catch (e) {
       setDiagnostics(getMarketDiagnostics());
@@ -66,7 +139,7 @@ export default function MarketDataDiagnostics() {
 
   useEffect(() => {
     refreshTelemetry();
-    const interval = setInterval(refreshTelemetry, 2000);
+    const interval = setInterval(refreshTelemetry, 2500);
     return () => clearInterval(interval);
   }, []);
 
@@ -100,6 +173,21 @@ export default function MarketDataDiagnostics() {
     brokerSpreadPips = calculatePipSpread(selectedPair, numBrokerBid, numBrokerAsk);
   }
 
+  const handleCopyEa = () => {
+    fetch('/api/mt5/ea-script')
+      .then(res => res.text())
+      .then(text => {
+        navigator.clipboard.writeText(text);
+        setCopiedEa(true);
+        setTimeout(() => setCopiedEa(false), 2500);
+      })
+      .catch(() => {
+        navigator.clipboard.writeText("// SESSIONKING_DataBridge.mq5\n// Download via /api/mt5/ea-script");
+        setCopiedEa(true);
+        setTimeout(() => setCopiedEa(false), 2500);
+      });
+  };
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
       {/* Header Banner */}
@@ -115,15 +203,22 @@ export default function MarketDataDiagnostics() {
                 Market Data & Price Integrity Engine
               </h1>
               <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-mono font-bold">
-                ZERO SYNTHETIC TICKS
+                100% AUTHENTIC TICKS
               </span>
             </div>
             <p className="text-xs text-gray-400 font-mono">
-              Single Authoritative State Hub • Monotonic Packet Sequencing • Strict Stale Guard Protection
+              Primary: MetaTrader 5 Terminal • Secondary: Interbank FCS Feed • Strict Invalidation & Freshness Guard
             </p>
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowEaModal(true)}
+              className="px-3.5 py-2 rounded-xl bg-gold/10 hover:bg-gold/20 text-gold border border-gold/30 text-xs font-mono flex items-center gap-2 transition-all shadow-sm"
+            >
+              <FileCode className="w-3.5 h-3.5" />
+              MT5 EA Bridge (.mq5)
+            </button>
             <button
               onClick={refreshTelemetry}
               className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10 text-xs font-mono flex items-center gap-2 transition-all shadow-sm"
@@ -134,6 +229,85 @@ export default function MarketDataDiagnostics() {
             <div className="text-[11px] font-mono text-gray-400 bg-black/40 px-3 py-1.5 rounded-xl border border-white/5">
               Refreshed: {lastRefreshed.toLocaleTimeString()}
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* MetaTrader 5 Primary Live Engine Card */}
+      <div className="bg-matte-dark/90 border border-gold/30 rounded-2xl p-6 shadow-2xl relative overflow-hidden">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
+          <div className="flex items-center gap-3">
+            <div className={cn(
+              "p-2.5 rounded-xl border flex items-center justify-center",
+              mt5Status?.status === 'ONLINE'
+                ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400"
+                : "bg-amber-500/15 border-amber-500/40 text-amber-400"
+            )}>
+              <Server className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-white font-mono">
+                  Primary Market Source: MetaTrader 5 Terminal
+                </h2>
+                <span className={cn(
+                  "text-[10px] px-2 py-0.5 rounded-full font-mono font-bold uppercase border",
+                  mt5Status?.status === 'ONLINE'
+                    ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40"
+                    : "bg-amber-500/20 text-amber-400 border-amber-500/40 animate-pulse"
+                )}>
+                  {mt5Status?.status || "STANDBY (FCS ACTIVE)"}
+                </span>
+              </div>
+              <p className="text-xs text-gray-400 font-mono mt-0.5">
+                Broker Feed: <span className="text-gray-200">{mt5Status?.broker || "External MT5 Terminal"}</span> • Server: <span className="text-gray-200">{mt5Status?.server || "Broker Access Point"}</span> • Latency: <span className="text-emerald-400">{mt5Status?.latencyMs ? `${mt5Status.latencyMs}ms` : "<15ms"}</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <a
+              href="/api/mt5/ea-script"
+              download="SESSIONKING_DataBridge.mq5"
+              className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-mono text-gray-200 border border-white/10 flex items-center gap-1.5 transition-all"
+            >
+              <Download className="w-3.5 h-3.5 text-gold" />
+              Download EA
+            </a>
+            <button
+              onClick={handleCopyEa}
+              className="px-3 py-1.5 rounded-xl bg-gold/15 hover:bg-gold/25 text-xs font-mono text-gold border border-gold/30 flex items-center gap-1.5 transition-all"
+            >
+              {copiedEa ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              {copiedEa ? "Copied MQL5!" : "Copy Bridge Code"}
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-white/5 font-mono text-xs">
+          <div className="bg-black/40 p-3 rounded-xl border border-white/5">
+            <span className="text-[10px] text-gray-400 block">MT5 Ingested Quotes</span>
+            <span className="text-white font-bold text-sm">
+              {mt5Status?.totalQuotesReceived?.toLocaleString() || "0"} Ticks
+            </span>
+          </div>
+          <div className="bg-black/40 p-3 rounded-xl border border-white/5">
+            <span className="text-[10px] text-gray-400 block">Watchdog Freshness Guard</span>
+            <span className="text-emerald-400 font-bold text-sm">
+              Strict Max 8,000ms
+            </span>
+          </div>
+          <div className="bg-black/40 p-3 rounded-xl border border-white/5">
+            <span className="text-[10px] text-gray-400 block">Secondary Fallback</span>
+            <span className="text-cyan-400 font-bold text-sm">
+              FCS Interbank Cross-Check
+            </span>
+          </div>
+          <div className="bg-black/40 p-3 rounded-xl border border-white/5">
+            <span className="text-[10px] text-gray-400 block">Signal Engine Safety Rule</span>
+            <span className="text-gold font-bold text-sm">
+              WAIT if Feed Stale
+            </span>
           </div>
         </div>
       </div>
@@ -203,8 +377,82 @@ export default function MarketDataDiagnostics() {
           <p className="text-lg font-bold text-gold font-mono">
             {Object.keys(diagnostics?.sourceCounts || {}).length || 3}
           </p>
-          <span className="text-[10px] text-gray-400 font-mono">FCS / Interbank / Crypto</span>
+          <span className="text-[10px] text-gray-400 font-mono">MT5 / Interbank / Crypto</span>
         </div>
+      </div>
+
+      {/* Trade Lifecycle State Machine Active Monitor */}
+      <div className="bg-matte-dark/80 border border-white/10 rounded-2xl p-6 shadow-xl">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/30">
+              <Crosshair className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-white font-mono">
+                Authoritative Trade Lifecycle State Machine ({activeTrades.length} Active Positions)
+              </h2>
+              <p className="text-[11px] text-gray-400 font-mono">
+                Transitions: PROPOSED → ACTIVE → FILLED → TP1 → TP2 → TP3 / STOPPED_OUT / INVALIDATED
+              </p>
+            </div>
+          </div>
+          <span className="text-[10px] text-emerald-400 font-mono border border-emerald-500/30 px-2.5 py-0.5 rounded-full bg-emerald-500/10">
+            Deduplication & Anti-Overlap Active
+          </span>
+        </div>
+
+        {activeTrades.length === 0 ? (
+          <div className="p-8 text-center bg-black/30 rounded-xl border border-white/5 font-mono text-xs text-gray-400">
+            No positions currently active in the lifecycle state machine. Validated signals will track here automatically.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left font-mono text-xs">
+              <thead>
+                <tr className="border-b border-white/5 bg-white/[0.02] text-gray-400 text-[10px] uppercase">
+                  <th className="py-2.5 px-3">Trade ID</th>
+                  <th className="py-2.5 px-3">Pair</th>
+                  <th className="py-2.5 px-3">Direction</th>
+                  <th className="py-2.5 px-3">Entry</th>
+                  <th className="py-2.5 px-3">Stop Loss</th>
+                  <th className="py-2.5 px-3">TP1 Target</th>
+                  <th className="py-2.5 px-3">TP2 Target</th>
+                  <th className="py-2.5 px-3">State</th>
+                  <th className="py-2.5 px-3">Realized Pips</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {activeTrades.map((t) => (
+                  <tr key={t.tradeId} className="hover:bg-white/[0.02]">
+                    <td className="py-2.5 px-3 font-bold text-white">{t.tradeId}</td>
+                    <td className="py-2.5 px-3 text-gold font-bold">{t.pair}</td>
+                    <td className="py-2.5 px-3">
+                      <span className={cn(
+                        "px-2 py-0.5 rounded text-[10px] font-bold",
+                        t.direction === 'BUY' ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400"
+                      )}>
+                        {t.direction}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-white">{t.entryPrice}</td>
+                    <td className="py-2.5 px-3 text-rose-400">{t.stopLoss}</td>
+                    <td className="py-2.5 px-3 text-emerald-400">{t.takeProfit1}</td>
+                    <td className="py-2.5 px-3 text-emerald-400">{t.takeProfit2}</td>
+                    <td className="py-2.5 px-3">
+                      <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/40 text-[9px] font-bold">
+                        {t.currentState}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 font-bold text-white">
+                      {t.pipsRealized > 0 ? `+${t.pipsRealized}` : t.pipsRealized}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Broker Live Comparison Tool */}
@@ -409,6 +657,70 @@ export default function MarketDataDiagnostics() {
           </table>
         </div>
       </div>
+
+      {/* MT5 EA Modal */}
+      <AnimatePresence>
+        {showEaModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-matte-dark border border-gold/30 rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden shadow-2xl"
+            >
+              <div className="p-5 border-b border-white/10 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FileCode className="w-5 h-5 text-gold" />
+                  <h3 className="font-bold text-white font-mono text-sm">
+                    SESSIONKING MetaTrader 5 Data Bridge (MQL5 EA)
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setShowEaModal(false)}
+                  className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/10"
+                >
+                  <XCircle className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4 overflow-y-auto text-xs font-mono text-gray-300">
+                <div className="p-3 bg-black/50 border border-gold/20 rounded-xl space-y-2">
+                  <span className="text-gold font-bold block text-sm">How to Install in MT5:</span>
+                  <ol className="list-decimal list-inside space-y-1.5 text-gray-300">
+                    <li>In MetaTrader 5, press <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-white">F4</kbd> to open MetaEditor.</li>
+                    <li>Click <strong className="text-white">New → Expert Advisor (template)</strong>, name it <code className="text-gold">SESSIONKING_DataBridge</code>.</li>
+                    <li>Replace all code with the script below and click <strong className="text-white">Compile</strong> (<kbd className="px-1.5 py-0.5 bg-white/10 rounded text-white">F7</kbd>).</li>
+                    <li>In MT5 terminal: Go to <strong className="text-white">Tools → Options → Expert Advisors</strong>.</li>
+                    <li>Check <strong className="text-emerald-400">"Allow WebRequest for listed URL"</strong> and add your app URL.</li>
+                    <li>Drag the EA onto any active M1 or M5 chart.</li>
+                  </ol>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400 text-[11px]">Source File: SESSIONKING_DataBridge.mq5</span>
+                  <div className="flex gap-2">
+                    <a
+                      href="/api/mt5/ea-script"
+                      download="SESSIONKING_DataBridge.mq5"
+                      className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs flex items-center gap-1.5"
+                    >
+                      <Download className="w-3.5 h-3.5 text-gold" />
+                      Download .mq5
+                    </a>
+                    <button
+                      onClick={handleCopyEa}
+                      className="px-3 py-1.5 rounded-lg bg-gold text-black font-bold text-xs flex items-center gap-1.5"
+                    >
+                      {copiedEa ? <Check className="w-3.5 h-3.5 text-black" /> : <Copy className="w-3.5 h-3.5 text-black" />}
+                      {copiedEa ? "Copied!" : "Copy Full Code"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

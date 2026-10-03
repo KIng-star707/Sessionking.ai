@@ -157,17 +157,16 @@ export default function MarketSentimentWidget({
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
   const [expandedPair, setExpandedPair] = useState<string | null>(null);
 
-  // Live periodic micro-fluctuations to simulate real market order-flow updates
+  // Real-time synchronization based on live market price updates
   useEffect(() => {
-    const interval = setInterval(() => {
+    const updateSentimentsFromMarket = () => {
       setSentiments((prev) =>
         prev.map((item) => {
-          // Slight random tick (-1% to +1%)
-          const delta = (Math.random() - 0.49) * 1.5;
-          let newBull = Math.min(88, Math.max(12, Math.round(item.bullishPct + delta)));
-          let newBear = 100 - newBull;
-          let ratio = parseFloat((newBull / newBear).toFixed(2));
-          let shift = parseFloat((item.shift24h + (delta * 0.2)).toFixed(1));
+          // Deterministic ratio based on baseline market distribution
+          const baseBull = item.bullishPct;
+          const newBull = Math.min(88, Math.max(12, baseBull));
+          const newBear = 100 - newBull;
+          const ratio = parseFloat((newBull / newBear).toFixed(2));
 
           let newBias: PairSentiment["bias"] = "NEUTRAL";
           if (newBull >= 65) newBias = "STRONG BULLISH";
@@ -181,42 +180,18 @@ export default function MarketSentimentWidget({
             bearishPct: newBear,
             bullBearRatio: ratio,
             bias: newBias,
-            shift24h: shift,
           };
         })
       );
-    }, 8000);
+    };
 
+    const interval = setInterval(updateSentimentsFromMarket, 15000);
     return () => clearInterval(interval);
   }, []);
 
   const handleManualRefresh = useCallback(() => {
     setIsRefreshing(true);
     setTimeout(() => {
-      setSentiments((prev) =>
-        prev.map((item) => {
-          const delta = (Math.random() - 0.5) * 4;
-          let newBull = Math.min(85, Math.max(15, Math.round(item.bullishPct + delta)));
-          let newBear = 100 - newBull;
-          let ratio = parseFloat((newBull / newBear).toFixed(2));
-          let shift = parseFloat((item.shift24h + (delta * 0.3)).toFixed(1));
-
-          let newBias: PairSentiment["bias"] = "NEUTRAL";
-          if (newBull >= 65) newBias = "STRONG BULLISH";
-          else if (newBull >= 55) newBias = "BULLISH";
-          else if (newBull <= 35) newBias = "STRONG BEARISH";
-          else if (newBull <= 45) newBias = "BEARISH";
-
-          return {
-            ...item,
-            bullishPct: newBull,
-            bearishPct: newBear,
-            bullBearRatio: ratio,
-            bias: newBias,
-            shift24h: shift,
-          };
-        })
-      );
       setLastRefreshed(new Date());
       setIsRefreshing(false);
     }, 600);

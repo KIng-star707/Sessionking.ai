@@ -48,20 +48,9 @@ export default function WalkForwardViewer({
         }));
       }
 
-      // If API returns limited data, create standard baseline candles
-      if (rawCandles.length < 90) {
-        const basePrice = pair.includes('JPY') ? 155.0 : pair.includes('XAU') ? 2400.0 : 1.0850;
-        const now = Date.now();
-        rawCandles = Array.from({ length: 120 }, (_, i) => {
-          const t = new Date(now - (120 - i) * 86400000).toISOString();
-          const wave = Math.sin(i / 8) * (basePrice * 0.015);
-          const noise = (Math.random() - 0.5) * (basePrice * 0.005);
-          const close = basePrice + wave + noise;
-          const open = close - (Math.random() - 0.5) * (basePrice * 0.003);
-          const high = Math.max(open, close) + Math.random() * (basePrice * 0.002);
-          const low = Math.min(open, close) - Math.random() * (basePrice * 0.002);
-          return { timestamp: t, open, high, low, close, volume: 15000 };
-        });
+      // Require authentic historical data - never fabricate missing candles
+      if (rawCandles.length < 30) {
+        throw new Error(`Insufficient authentic historical data for ${pair} (${rawCandles.length} candles). Walk-forward testing requires authentic market depth to ensure data integrity.`);
       }
 
       const wfResult = await executeWalkForwardAnalysis({

@@ -139,7 +139,7 @@ export default function SupportPage({ user, userProfile, currentPlan }: SupportP
         
         // Chat format payload
         const resp = await fetchGeminiProxy({
-          model: "gemini-3.5-flash-lite",
+          model: "gemini-2.5-flash",
           contents: [{ parts: [{ text: prompt }] }],
           systemInstruction: systemPrompt
         });

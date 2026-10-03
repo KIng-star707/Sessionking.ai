@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, ReferenceLine } from 'recharts';
 import { Activity, AlertCircle, TrendingDown, TrendingUp, RefreshCw, ChevronDown, CheckCircle, Clock, ShieldCheck } from 'lucide-react';
+import { marketDataService } from '../lib/marketDataService';
 
 interface LiveAnalysisChartProps {
   pair: string;
@@ -62,18 +63,12 @@ export default function LiveAnalysisChart({ pair: initialPair, bias, technicalLe
   const fetchChartData = async (isManual = false) => {
     if (isManual) setRefreshing(true);
     try {
-      const res = await fetch(`/api/market-data?pair=${encodeURIComponent(selectedPair)}&period=${timeframe}`);
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+      const res = await marketDataService.fetchMarketData(selectedPair, timeframe, isManual);
+      if (res?.state) {
+        setMarketState(res.state);
       }
-      const json = await res.json();
-      
-      if (json.state) {
-        setMarketState(json.state);
-      }
-
-      if (Array.isArray(json.data) && json.data.length > 0) {
-        const mapped = json.data.map((d: any) => {
+      if (Array.isArray(res?.data) && res.data.length > 0) {
+        const mapped = res.data.map((d: any) => {
           const dateObj = new Date(d.timestamp);
           return {
             time: timeframe === '1d' 
@@ -103,16 +98,45 @@ export default function LiveAnalysisChart({ pair: initialPair, bias, technicalLe
     }
   };
 
+  // Consolidate price polling into MarketDataService: exactly one polling loop per pair with automatic cleanup
   useEffect(() => {
     setLoading(true);
-    fetchChartData();
 
-    // Regular live poll every 4 seconds
-    const interval = setInterval(() => {
-      fetchChartData(false);
-    }, 4000);
+    const unsubscribe = marketDataService.subscribe(
+      selectedPair,
+      (nextState, candles) => {
+        if (nextState) {
+          setMarketState(nextState);
+        }
 
-    return () => clearInterval(interval);
+        if (Array.isArray(candles) && candles.length > 0) {
+          const mapped = candles.map((d: any) => {
+            const dateObj = new Date(d.timestamp);
+            return {
+              time: timeframe === '1d' 
+                ? dateObj.toLocaleDateString([], { month: 'short', day: 'numeric' })
+                : dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+              timestamp: dateObj.getTime(),
+              price: Number(d.close),
+              open: Number(d.open),
+              high: Number(d.high),
+              low: Number(d.low)
+            };
+          });
+
+          setData(mapped);
+          setError(null);
+          setLastUpdated(new Date());
+        }
+        setLoading(false);
+      },
+      timeframe
+    );
+
+    return () => {
+      // Proper cleanup: unregisters subscriber and tears down interval when pair has no remaining listeners
+      unsubscribe();
+    };
   }, [selectedPair, timeframe]);
 
   // Decimal formatting based on instrument type
